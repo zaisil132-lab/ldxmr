@@ -32,12 +32,12 @@
         h2 { margin: 0; font-size: 24px; color: var(--gold); text-shadow: 0 2px 4px #000; }
         #timer { display: inline-block; font-size: 16px; margin-top: 5px; background: rgba(22,91,51,0.9); padding: 3px 12px; border-radius: 15px; border: 1px solid var(--gold); }
 
-        /* 游戏棋盘 5x8 */
+        /* 游戏棋盘 */
         #game-container { flex: 1; display: flex; justify-content: center; align-items: center; padding: 10px; z-index: 10; width: 100%; }
         #game-board { 
             display: grid; 
-            grid-template-columns: repeat(7, 1fr); /* 5内容+2边 */
-            grid-template-rows: repeat(10, 1fr);   /* 8内容+2边 */
+            grid-template-columns: repeat(7, 1fr); 
+            grid-template-rows: repeat(10, 1fr);   
             gap: 2px; width: 92vw; height: 147vw; max-height: 80vh; max-width: 50vh; 
             padding: 12px; background-color: var(--green); border: 6px solid #1f4e2a; border-radius: 15px; 
             box-shadow: 0 0 15px rgba(0,0,0,0.8), 0 0 0 2px var(--red), 0 0 15px 5px var(--gold); 
@@ -61,7 +61,7 @@
         }
         .invisible { opacity: 0; pointer-events: none; }
 
-        /* 提示按钮 */
+        /* 提示按钮 (修复了图片链接) */
         #hint-container { position: fixed; bottom: 30px; right: 20px; z-index: 50; text-align: center; }
         #hint-btn { 
             position: relative; width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff; 
@@ -90,6 +90,7 @@
 </head>
 <body>
     <canvas id="particle-canvas"></canvas>
+    
     <audio id="bgm" src="https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/music.mp3" loop></audio>
     <audio id="sfx" src="https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/click.mp3"></audio> 
 
@@ -123,7 +124,7 @@
     <script>
         const bgm = document.getElementById('bgm'), sfx = document.getElementById('sfx'), musicBtn = document.getElementById('music-btn');
         let musicPlaying = false, hintsLeft = 2, cellsLeft = 40, grid = [], selected = null, timerInt, sec = 0;
-        const ROWS = 10, COLS = 7; // 实际5x8 + 边界
+        const ROWS = 10, COLS = 7; 
 
         function startGame() {
             bgm.play().then(() => { musicPlaying = true; musicBtn.classList.remove('paused'); }).catch(() => {});
@@ -141,7 +142,6 @@
             const board = document.getElementById('game-board');
             board.innerHTML = '';
             
-            // 生成数据：10人 * 4张 = 40张，完美填满
             let data = [];
             for (let i = 1; i <= 10; i++) for (let j = 0; j < 4; j++) data.push(i);
             data.sort(() => Math.random() - 0.5);
@@ -155,12 +155,12 @@
                     let obj = { val: 0, x, y, active: false, el: cell };
 
                     if (x === 0 || x === COLS - 1 || y === 0 || y === ROWS - 1) {
-                        cell.classList.add('invisible'); // 边界
+                        cell.classList.add('invisible'); 
                     } else {
-                        // 内部区域，直接填充数据，无空块
                         obj.val = data[idx++];
                         obj.active = true;
                         cell.classList.add('active');
+                        // 修复了图片链接
                         cell.style.backgroundImage = `url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/${obj.val}.png')`;
                         cell.onclick = () => handleInput(x, y, obj);
                     }
@@ -171,12 +171,13 @@
             }
             startTimer();
             updateHint();
+            shuffleUntilSolvable(); // 开局检测死局
         }
 
         function handleInput(x, y, obj) {
             sfx.currentTime = 0; sfx.play().catch(()=>{});
             if (!obj.active) return;
-            document.querySelectorAll('.hint').forEach(e => e.classList.remove('hint')); // 清除提示
+            document.querySelectorAll('.hint').forEach(e => e.classList.remove('hint')); 
 
             if (!selected) {
                 selected = obj; obj.el.classList.add('selected');
@@ -190,6 +191,7 @@
                     selected = null;
                     cellsLeft -= 2;
                     if (cellsLeft === 0) win();
+                    else shuffleUntilSolvable(); // 每次消除后检测死局
                 } else {
                     selected.el.classList.remove('selected');
                     selected = obj; obj.el.classList.add('selected');
@@ -202,18 +204,17 @@
         }
         function isEmpty(x, y) { return !grid[y][x].active; }
         function matchLine(a, b) {
-            if (a.x === b.x) { // 同列
+            if (a.x === b.x) { 
                 for (let i = Math.min(a.y, b.y) + 1; i < Math.max(a.y, b.y); i++) if (!isEmpty(a.x, i)) return false;
                 return true;
             } 
-            if (a.y === b.y) { // 同行
+            if (a.y === b.y) { 
                 for (let i = Math.min(a.x, b.x) + 1; i < Math.max(a.x, b.x); i++) if (!isEmpty(i, a.y)) return false;
                 return true;
             }
             return false;
         }
         function matchOne(a, b) {
-            // 拐点1 (a.x, b.y), 拐点2 (b.x, a.y)
             if (isEmpty(a.x, b.y) && matchLine(a, {x:a.x, y:b.y}) && matchLine({x:a.x, y:b.y}, b)) return true;
             if (isEmpty(b.x, a.y) && matchLine(a, {x:b.x, y:a.y}) && matchLine({x:b.x, y:a.y}, b)) return true;
             return false;
@@ -256,6 +257,38 @@
             }, 1000);
         }
         function win() { clearInterval(timerInt); setTimeout(() => document.getElementById('win-modal').style.display = 'flex', 500); }
+
+        // === 新增：检测死局逻辑 ===
+        function isDeadlock() {
+            let actives = grid.flat().filter(c => c.active);
+            for (let i = 0; i < actives.length; i++) {
+                for (let j = i + 1; j < actives.length; j++) {
+                    if (actives[i].val === actives[j].val && checkPath(actives[i], actives[j])) {
+                        return false; 
+                    }
+                }
+            }
+            return true;
+        }
+
+        // === 新增：自动洗牌直到有解 ===
+        function shuffleUntilSolvable() {
+            let actives = grid.flat().filter(c => c.active);
+            if (actives.length === 0) return;
+
+            while (isDeadlock()) {
+                console.log("死局重置...");
+                let values = actives.map(c => c.val);
+                values.sort(() => Math.random() - 0.5);
+                actives.forEach((c, i) => {
+                    c.val = values[i];
+                    // 确保洗牌后也使用 CDN 链接
+                    c.el.style.backgroundImage = `url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/${c.val}.png')`;
+                    c.el.classList.remove('selected');
+                });
+                selected = null;
+            }
+        }
 
         // 粒子背景
         const cvs = document.getElementById('particle-canvas'), ctx = cvs.getContext('2d');
