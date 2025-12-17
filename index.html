@@ -27,6 +27,20 @@
         }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
+        /* === 新增：游戏说明弹窗 === */
+        #rules-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        .rules-box { 
+            background: #fff; color: #333; padding: 25px; border-radius: 15px; width: 85%; max-width: 350px; 
+            border: 4px solid var(--gold); position: relative;
+        }
+        .rules-box h3 { color: var(--red); margin-top: 0; text-align: center; font-size: 22px; border-bottom: 2px dashed #ccc; padding-bottom: 10px; }
+        .rules-content { font-size: 16px; line-height: 1.6; text-align: left; margin-bottom: 20px; font-family: sans-serif; }
+        .rules-content p { margin: 8px 0; }
+        .rules-btn { 
+            width: 100%; padding: 12px; background: var(--green); color: #fff; border: none; 
+            border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer;
+        }
+
         /* UI */
         .header-ui { z-index: 10; flex: 0 0 auto; text-align: center; padding-top: max(15px, env(safe-area-inset-top)); padding-bottom: 5px; }
         h2 { margin: 0; font-size: 24px; color: var(--gold); text-shadow: 0 2px 4px #000; }
@@ -61,7 +75,7 @@
         }
         .invisible { opacity: 0; pointer-events: none; }
 
-        /* 提示按钮 (修复了图片链接) */
+        /* 提示按钮 */
         #hint-container { position: fixed; bottom: 30px; right: 20px; z-index: 50; text-align: center; }
         #hint-btn { 
             position: relative; width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff; 
@@ -76,7 +90,7 @@
         }
         .hint-text { margin-top: 5px; background: rgba(0,0,0,0.7); color: var(--gold); padding: 4px 8px; border-radius: 4px; font-size: 11px; }
 
-        /* 弹窗 */
+        /* 胜利弹窗 */
         #win-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
         .win-box { background: #fff; color: #333; padding: 30px; border-radius: 10px; text-align: center; border: 4px solid var(--red); width: 85%; max-width: 320px; }
         .contact { margin-top: 15px; font-size: 18px; color: var(--red); font-weight: bold; border-top: 1px dashed #ccc; padding-top: 15px; animation: pulse 2s infinite; }
@@ -96,7 +110,21 @@
 
     <div id="start-screen">
         <h1 style="color:#ffd700; margin-bottom: 30px; text-align:center;">🎄<br>夏摩尔圣诞奇妙夜</h1>
-        <button class="start-btn" onclick="startGame()">开始挑战</button>
+        <button class="start-btn" onclick="showRules()">开始挑战</button>
+    </div>
+
+    <div id="rules-modal">
+        <div class="rules-box">
+            <h3>🎅 游戏规则</h3>
+            <div class="rules-content">
+                <p>1. 点击两个<b>相同头像</b>进行消除。</p>
+                <p>2. 连线路径不能超过<b>两个转弯</b>。</p>
+                <p>3. 遇到死局会自动洗牌，不用担心。</p>
+                <p>4. 右下角有<b>2次援助机会</b>哦！</p>
+                <p style="color:#d42e2e; font-weight:bold; margin-top:15px; text-align:center;">准备好赢取圣诞礼物了吗？</p>
+            </div>
+            <button class="rules-btn" onclick="realStartGame()">我明白了，开始！</button>
+        </div>
     </div>
 
     <div id="music-btn" class="paused" onclick="toggleMusic()">🎵</div>
@@ -126,9 +154,36 @@
         let musicPlaying = false, hintsLeft = 2, cellsLeft = 40, grid = [], selected = null, timerInt, sec = 0;
         const ROWS = 10, COLS = 7; 
 
-        function startGame() {
-            bgm.play().then(() => { musicPlaying = true; musicBtn.classList.remove('paused'); }).catch(() => {});
+        // === 新增：静默预加载功能 ===
+        // 网页一打开，后台就开始偷偷下载图片
+        function preloadAssets() {
+            const cmv = 'https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/';
+            const imagesToLoad = ['me.png'];
+            for(let i=1; i<=10; i++) imagesToLoad.push(`${i}.png`);
+            
+            imagesToLoad.forEach(img => {
+                const i = new Image();
+                i.src = cmv + img;
+            });
+            console.log("正在静默预加载资源...");
+        }
+        window.onload = preloadAssets; // 绑定到网页加载事件
+
+        // 点击"开始挑战"显示规则
+        function showRules() {
+            // 尝试播放音乐（为了解除浏览器自动播放限制）
+            bgm.play().then(() => { 
+                bgm.pause(); // 先暂停，等真正开始再播
+            }).catch(() => {});
+            
             document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('rules-modal').style.display = 'flex';
+        }
+
+        // 点击"我明白了"真正开始游戏
+        function realStartGame() {
+            document.getElementById('rules-modal').style.display = 'none';
+            bgm.play().then(() => { musicPlaying = true; musicBtn.classList.remove('paused'); }).catch(() => {});
             initGame();
         }
 
@@ -160,7 +215,6 @@
                         obj.val = data[idx++];
                         obj.active = true;
                         cell.classList.add('active');
-                        // 修复了图片链接
                         cell.style.backgroundImage = `url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/${obj.val}.png')`;
                         cell.onclick = () => handleInput(x, y, obj);
                     }
@@ -171,7 +225,7 @@
             }
             startTimer();
             updateHint();
-            shuffleUntilSolvable(); // 开局检测死局
+            shuffleUntilSolvable(); // 开局防死局
         }
 
         function handleInput(x, y, obj) {
@@ -185,13 +239,12 @@
                 if (selected.x === x && selected.y === y) {
                     selected.el.classList.remove('selected'); selected = null;
                 } else if (selected.val === obj.val && checkPath(selected, obj)) {
-                    // 消除
                     selected.el.className = obj.el.className = 'cell invisible';
                     selected.active = obj.active = false;
                     selected = null;
                     cellsLeft -= 2;
                     if (cellsLeft === 0) win();
-                    else shuffleUntilSolvable(); // 每次消除后检测死局
+                    else shuffleUntilSolvable(); // 消除后防死局
                 } else {
                     selected.el.classList.remove('selected');
                     selected = obj; obj.el.classList.add('selected');
@@ -258,7 +311,6 @@
         }
         function win() { clearInterval(timerInt); setTimeout(() => document.getElementById('win-modal').style.display = 'flex', 500); }
 
-        // === 新增：检测死局逻辑 ===
         function isDeadlock() {
             let actives = grid.flat().filter(c => c.active);
             for (let i = 0; i < actives.length; i++) {
@@ -271,7 +323,6 @@
             return true;
         }
 
-        // === 新增：自动洗牌直到有解 ===
         function shuffleUntilSolvable() {
             let actives = grid.flat().filter(c => c.active);
             if (actives.length === 0) return;
@@ -282,7 +333,6 @@
                 values.sort(() => Math.random() - 0.5);
                 actives.forEach((c, i) => {
                     c.val = values[i];
-                    // 确保洗牌后也使用 CDN 链接
                     c.el.style.backgroundImage = `url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/${c.val}.png')`;
                     c.el.classList.remove('selected');
                 });
