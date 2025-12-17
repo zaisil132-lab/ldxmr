@@ -65,7 +65,7 @@
         #hint-container { position: fixed; bottom: 30px; right: 20px; z-index: 50; text-align: center; }
         #hint-btn { 
             position: relative; width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff; 
-            background: var(--red) url('images/me.png') center/cover; 
+            background: var(--red) url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/me.png') center/cover; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.3s;
         }
         #hint-btn.disabled { filter: grayscale(1); opacity: 0.6; cursor: not-allowed; }
@@ -90,8 +90,8 @@
 </head>
 <body>
     <canvas id="particle-canvas"></canvas>
-    <audio id="bgm" src="music.mp3" loop></audio>
-    <audio id="sfx" src="click.mp3"></audio> 
+    <audio id="bgm" src="https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/music.mp3" loop></audio>
+    <audio id="sfx" src="https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/click.mp3"></audio> 
 
     <div id="start-screen">
         <h1 style="color:#ffd700; margin-bottom: 30px; text-align:center;">🎄<br>夏摩尔圣诞奇妙夜</h1>
@@ -161,7 +161,7 @@
                         obj.val = data[idx++];
                         obj.active = true;
                         cell.classList.add('active');
-                        cell.style.backgroundImage = `url('images/${obj.val}.png')`;
+                        cell.style.backgroundImage = `url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/${obj.val}.png')`;
                         cell.onclick = () => handleInput(x, y, obj);
                     }
                     board.appendChild(cell);
