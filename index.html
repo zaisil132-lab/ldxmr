@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>夏摩尔圣诞奇妙夜</title>
+    <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root { --gold: #ffd700; --red: #d42e2e; --green: #0f3d24; }
+        * { box-sizing: border-box; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        body { 
+            margin: 0; padding: 0; background: radial-gradient(circle at 50% 30%, #1a2a6c, #0f0c29, #000); 
+            overflow: hidden; font-family: 'Mountains of Christmas', cursive, serif; 
+            display: flex; flex-direction: column; height: 100vh; color: white; 
+        }
+        #particle-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+        
+        /* 封面 */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(10px);
+        }
+        .start-btn {
+            font-size: 24px; padding: 15px 40px; background: var(--red); color: #fff;
+            border: 3px solid var(--gold); border-radius: 50px; box-shadow: 0 0 20px var(--gold);
+            cursor: pointer; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        /* UI */
+        .header-ui { z-index: 10; flex: 0 0 auto; text-align: center; padding-top: max(15px, env(safe-area-inset-top)); padding-bottom: 5px; }
+        h2 { margin: 0; font-size: 24px; color: var(--gold); text-shadow: 0 2px 4px #000; }
+        #timer { display: inline-block; font-size: 16px; margin-top: 5px; background: rgba(22,91,51,0.9); padding: 3px 12px; border-radius: 15px; border: 1px solid var(--gold); }
+
+        /* 游戏棋盘 5x8 */
+        #game-container { flex: 1; display: flex; justify-content: center; align-items: center; padding: 10px; z-index: 10; width: 100%; }
+        #game-board { 
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr); /* 5内容+2边 */
+            grid-template-rows: repeat(10, 1fr);   /* 8内容+2边 */
+            gap: 2px; width: 92vw; height: 147vw; max-height: 80vh; max-width: 50vh; 
+            padding: 12px; background-color: var(--green); border: 6px solid #1f4e2a; border-radius: 15px; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.8), 0 0 0 2px var(--red), 0 0 15px 5px var(--gold); 
+            position: relative; 
+        }
+        #game-board::before { content: '🎁'; position: absolute; top: -15px; left: -10px; font-size: 30px; z-index: 20; }
+        #game-board::after { content: '🔔'; position: absolute; bottom: -15px; right: -10px; font-size: 30px; z-index: 20; }
+
+        /* 格子 */
+        .cell { width: 100%; height: 100%; border-radius: 4px; position: relative; }
+        .cell.active { 
+            background-color: #fff; border: 1px solid var(--red); background-size: cover; background-position: center; 
+            box-shadow: 0 2px 0 #8b0000; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cell.active:active { transform: translateY(2px); box-shadow: none; }
+        .cell.selected { border: 2px solid var(--gold) !important; filter: brightness(1.2); transform: scale(1.05); z-index: 50; }
+        .cell.hint { z-index: 100; animation: float 0.8s ease-in-out infinite alternate; }
+        @keyframes float { 
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,215,0,0.5); border-color: var(--red); } 
+            100% { transform: scale(1.15); box-shadow: 0 0 25px 5px var(--gold); border-color: var(--gold); } 
+        }
+        .invisible { opacity: 0; pointer-events: none; }
+
+        /* 提示按钮 */
+        #hint-container { position: fixed; bottom: 30px; right: 20px; z-index: 50; text-align: center; }
+        #hint-btn { 
+            position: relative; width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff; 
+            background: var(--red) url('images/me.png') center/cover; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.3s;
+        }
+        #hint-btn.disabled { filter: grayscale(1); opacity: 0.6; cursor: not-allowed; }
+        #hint-count { 
+            position: absolute; top: -5px; right: -5px; background: var(--gold); color: var(--red); 
+            border: 2px solid #fff; border-radius: 50%; width: 24px; height: 24px; 
+            display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; 
+        }
+        .hint-text { margin-top: 5px; background: rgba(0,0,0,0.7); color: var(--gold); padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+
+        /* 弹窗 */
+        #win-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
+        .win-box { background: #fff; color: #333; padding: 30px; border-radius: 10px; text-align: center; border: 4px solid var(--red); width: 85%; max-width: 320px; }
+        .contact { margin-top: 15px; font-size: 18px; color: var(--red); font-weight: bold; border-top: 1px dashed #ccc; padding-top: 15px; animation: pulse 2s infinite; }
+        button.restart { margin-top: 20px; padding: 10px 25px; background: #165b33; color: #fff; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; }
+
+        /* 音乐开关 */
+        #music-btn { position: absolute; top: 15px; left: 15px; font-size: 24px; z-index: 60; filter: drop-shadow(0 0 5px gold); animation: spin 3s linear infinite; cursor: pointer; }
+        .paused { animation: none !important; opacity: 0.5; filter: grayscale(1) !important; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+    <audio id="bgm" src="music.mp3" loop></audio>
+    <audio id="sfx" src="click.mp3"></audio> 
+
+    <div id="start-screen">
+        <h1 style="color:#ffd700; margin-bottom: 30px; text-align:center;">🎄<br>夏摩尔圣诞奇妙夜</h1>
+        <button class="start-btn" onclick="startGame()">开始挑战</button>
+    </div>
+
+    <div id="music-btn" class="paused" onclick="toggleMusic()">🎵</div>
+
+    <div class="header-ui">
+        <h2>🎄夏摩尔圣诞奇妙夜</h2>
+        <div id="timer">TIME: 00:00</div>
+    </div>
+    <div id="game-container"><div id="game-board"></div></div>
+    
+    <div id="hint-container">
+        <div id="hint-btn" onclick="useHint()"><div id="hint-count">2</div></div>
+        <div class="hint-text">援助</div>
+    </div>
+
+    <div id="win-modal">
+        <div class="win-box">
+            <h2>🎉 挑战成功!</h2>
+            <p style="font-size:20px;">耗时: <span id="final-time" style="color:#165b33; font-weight:bold;"></span></p>
+            <div class="contact">把成绩告知给<br>夏摩尔客服吧！</div>
+            <button class="restart" onclick="location.reload()">再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        const bgm = document.getElementById('bgm'), sfx = document.getElementById('sfx'), musicBtn = document.getElementById('music-btn');
+        let musicPlaying = false, hintsLeft = 2, cellsLeft = 40, grid = [], selected = null, timerInt, sec = 0;
+        const ROWS = 10, COLS = 7; // 实际5x8 + 边界
+
+        function startGame() {
+            bgm.play().then(() => { musicPlaying = true; musicBtn.classList.remove('paused'); }).catch(() => {});
+            document.getElementById('start-screen').style.display = 'none';
+            initGame();
+        }
+
+        function toggleMusic() {
+            if (musicPlaying) { bgm.pause(); musicBtn.classList.add('paused'); } 
+            else { bgm.play(); musicBtn.classList.remove('paused'); }
+            musicPlaying = !musicPlaying;
+        }
+
+        function initGame() {
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
+            
+            // 生成数据：10人 * 4张 = 40张，完美填满
+            let data = [];
+            for (let i = 1; i <= 10; i++) for (let j = 0; j < 4; j++) data.push(i);
+            data.sort(() => Math.random() - 0.5);
+            
+            grid = []; let idx = 0;
+            for (let y = 0; y < ROWS; y++) {
+                let row = [];
+                for (let x = 0; x < COLS; x++) {
+                    let cell = document.createElement('div');
+                    cell.className = 'cell';
+                    let obj = { val: 0, x, y, active: false, el: cell };
+
+                    if (x === 0 || x === COLS - 1 || y === 0 || y === ROWS - 1) {
+                        cell.classList.add('invisible'); // 边界
+                    } else {
+                        // 内部区域，直接填充数据，无空块
+                        obj.val = data[idx++];
+                        obj.active = true;
+                        cell.classList.add('active');
+                        cell.style.backgroundImage = `url('images/${obj.val}.png')`;
+                        cell.onclick = () => handleInput(x, y, obj);
+                    }
+                    board.appendChild(cell);
+                    row.push(obj);
+                }
+                grid.push(row);
+            }
+            startTimer();
+            updateHint();
+        }
+
+        function handleInput(x, y, obj) {
+            sfx.currentTime = 0; sfx.play().catch(()=>{});
+            if (!obj.active) return;
+            document.querySelectorAll('.hint').forEach(e => e.classList.remove('hint')); // 清除提示
+
+            if (!selected) {
+                selected = obj; obj.el.classList.add('selected');
+            } else {
+                if (selected.x === x && selected.y === y) {
+                    selected.el.classList.remove('selected'); selected = null;
+                } else if (selected.val === obj.val && checkPath(selected, obj)) {
+                    // 消除
+                    selected.el.className = obj.el.className = 'cell invisible';
+                    selected.active = obj.active = false;
+                    selected = null;
+                    cellsLeft -= 2;
+                    if (cellsLeft === 0) win();
+                } else {
+                    selected.el.classList.remove('selected');
+                    selected = obj; obj.el.classList.add('selected');
+                }
+            }
+        }
+
+        function checkPath(a, b) {
+            return matchLine(a, b) || matchOne(a, b) || matchTwo(a, b);
+        }
+        function isEmpty(x, y) { return !grid[y][x].active; }
+        function matchLine(a, b) {
+            if (a.x === b.x) { // 同列
+                for (let i = Math.min(a.y, b.y) + 1; i < Math.max(a.y, b.y); i++) if (!isEmpty(a.x, i)) return false;
+                return true;
+            } 
+            if (a.y === b.y) { // 同行
+                for (let i = Math.min(a.x, b.x) + 1; i < Math.max(a.x, b.x); i++) if (!isEmpty(i, a.y)) return false;
+                return true;
+            }
+            return false;
+        }
+        function matchOne(a, b) {
+            // 拐点1 (a.x, b.y), 拐点2 (b.x, a.y)
+            if (isEmpty(a.x, b.y) && matchLine(a, {x:a.x, y:b.y}) && matchLine({x:a.x, y:b.y}, b)) return true;
+            if (isEmpty(b.x, a.y) && matchLine(a, {x:b.x, y:a.y}) && matchLine({x:b.x, y:a.y}, b)) return true;
+            return false;
+        }
+        function matchTwo(a, b) {
+            for (let i = 0; i < COLS; i++) if (isEmpty(i, a.y) && matchLine(a, {x:i, y:a.y}) && matchOne({x:i, y:a.y}, b)) return true;
+            for (let i = 0; i < ROWS; i++) if (isEmpty(a.x, i) && matchLine(a, {x:a.x, y:i}) && matchOne({x:a.x, y:i}, b)) return true;
+            return false;
+        }
+
+        function useHint() {
+            if (hintsLeft <= 0 || cellsLeft === 0) return;
+            let actives = grid.flat().filter(c => c.active);
+            for (let i = 0; i < actives.length; i++) {
+                for (let j = i + 1; j < actives.length; j++) {
+                    if (actives[i].val === actives[j].val && checkPath(actives[i], actives[j])) {
+                        hintsLeft--;
+                        updateHint();
+                        actives[i].el.classList.add('hint');
+                        actives[j].el.classList.add('hint');
+                        setTimeout(() => document.querySelectorAll('.hint').forEach(e => e.classList.remove('hint')), 2000);
+                        return;
+                    }
+                }
+            }
+        }
+
+        function updateHint() {
+            document.getElementById('hint-count').innerText = hintsLeft;
+            document.getElementById('hint-btn').className = hintsLeft <= 0 ? 'disabled' : '';
+        }
+
+        function startTimer() {
+            sec = 0;
+            timerInt = setInterval(() => {
+                sec++;
+                let t = `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`;
+                document.getElementById('timer').innerText = 'TIME: ' + t;
+                document.getElementById('final-time').innerText = t;
+            }, 1000);
+        }
+        function win() { clearInterval(timerInt); setTimeout(() => document.getElementById('win-modal').style.display = 'flex', 500); }
+
+        // 粒子背景
+        const cvs = document.getElementById('particle-canvas'), ctx = cvs.getContext('2d');
+        let pts = [];
+        const resize = () => { cvs.width = window.innerWidth; cvs.height = window.innerHeight; };
+        window.onresize = resize; resize();
+        class P { 
+            constructor() { this.rst(); } 
+            rst() { this.x=Math.random()*cvs.width; this.y=Math.random()*cvs.height; this.s=Math.random()*2+1; this.sy=Math.random()*0.5+0.2; this.op=Math.random()*0.5+0.2; this.c=Math.random()>0.8?'#ffd700':'#fff'; }
+            up() { this.y+=this.sy; if(this.y>cvs.height) this.y=0; }
+            dr() { ctx.fillStyle=this.c; ctx.globalAlpha=this.op; ctx.beginPath(); ctx.arc(this.x,this.y,this.s,0,6.28); ctx.fill(); }
+        }
+        for(let i=0; i<50; i++) pts.push(new P());
+        function loop() { ctx.clearRect(0,0,cvs.width,cvs.height); pts.forEach(p=>{p.up();p.dr()}); requestAnimationFrame(loop); }
+        loop();
+    </script>
+</body>
+</html>
