@@ -15,10 +15,31 @@
         }
         #particle-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
         
+        /* 加载进度页 */
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #0f0c29; z-index: 2000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s;
+        }
+        .loader-spinner {
+            width: 50px; height: 50px; border: 5px solid rgba(255,215,0,0.3);
+            border-radius: 50%; border-top-color: var(--gold);
+            animation: spin 1s ease-in-out infinite; margin-bottom: 20px;
+        }
+        .loading-text { font-size: 20px; color: var(--gold); letter-spacing: 2px; }
+        .progress-bar {
+            width: 200px; height: 6px; background: #333; margin-top: 15px; border-radius: 3px; overflow: hidden;
+        }
+        .progress-fill {
+            width: 0%; height: 100%; background: var(--red); transition: width 0.2s;
+        }
+
         /* 封面 */
         #start-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999;
             display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(10px);
+            display: none; 
         }
         .start-btn {
             font-size: 24px; padding: 15px 40px; background: var(--red); color: #fff;
@@ -27,7 +48,7 @@
         }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
-        /* === 新增：游戏说明弹窗 === */
+        /* 规则说明 */
         #rules-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
         .rules-box { 
             background: #fff; color: #333; padding: 25px; border-radius: 15px; width: 85%; max-width: 350px; 
@@ -104,9 +125,14 @@
 </head>
 <body>
     <canvas id="particle-canvas"></canvas>
-    
     <audio id="bgm" src="https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/music.mp3" loop></audio>
     <audio id="sfx" src="https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/click.mp3"></audio> 
+
+    <div id="loading-screen">
+        <div class="loader-spinner"></div>
+        <div class="loading-text">资源加载中 <span id="progress-text">0%</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
 
     <div id="start-screen">
         <h1 style="color:#ffd700; margin-bottom: 30px; text-align:center;">🎄<br>夏摩尔圣诞奇妙夜</h1>
@@ -154,33 +180,48 @@
         let musicPlaying = false, hintsLeft = 2, cellsLeft = 40, grid = [], selected = null, timerInt, sec = 0;
         const ROWS = 10, COLS = 7; 
 
-        // === 新增：静默预加载功能 ===
-        // 网页一打开，后台就开始偷偷下载图片
+        // === 预加载与进度条 ===
         function preloadAssets() {
             const cmv = 'https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/';
             const imagesToLoad = ['me.png'];
             for(let i=1; i<=10; i++) imagesToLoad.push(`${i}.png`);
             
+            let loadedCount = 0;
+            const totalCount = imagesToLoad.length;
+            const progressText = document.getElementById('progress-text');
+            const progressFill = document.getElementById('progress-fill');
+
+            function checkDone() {
+                loadedCount++;
+                const percent = Math.floor((loadedCount / totalCount) * 100);
+                progressText.innerText = percent + '%';
+                progressFill.style.width = percent + '%';
+                
+                if (loadedCount >= totalCount) {
+                    setTimeout(() => {
+                        document.getElementById('loading-screen').style.opacity = '0';
+                        setTimeout(() => {
+                            document.getElementById('loading-screen').style.display = 'none';
+                            document.getElementById('start-screen').style.display = 'flex';
+                        }, 500);
+                    }, 500);
+                }
+            }
             imagesToLoad.forEach(img => {
                 const i = new Image();
+                i.onload = checkDone;
+                i.onerror = checkDone; 
                 i.src = cmv + img;
             });
-            console.log("正在静默预加载资源...");
         }
-        window.onload = preloadAssets; // 绑定到网页加载事件
+        window.onload = preloadAssets;
 
-        // 点击"开始挑战"显示规则
         function showRules() {
-            // 尝试播放音乐（为了解除浏览器自动播放限制）
-            bgm.play().then(() => { 
-                bgm.pause(); // 先暂停，等真正开始再播
-            }).catch(() => {});
-            
+            bgm.play().then(() => { bgm.pause(); }).catch(() => {});
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('rules-modal').style.display = 'flex';
         }
 
-        // 点击"我明白了"真正开始游戏
         function realStartGame() {
             document.getElementById('rules-modal').style.display = 'none';
             bgm.play().then(() => { musicPlaying = true; musicBtn.classList.remove('paused'); }).catch(() => {});
@@ -193,13 +234,25 @@
             musicPlaying = !musicPlaying;
         }
 
+        // === 新增：专业洗牌算法 (Fisher-Yates) ===
+        // 这才是真正的彻底打乱
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
         function initGame() {
             const board = document.getElementById('game-board');
             board.innerHTML = '';
             
             let data = [];
             for (let i = 1; i <= 10; i++) for (let j = 0; j < 4; j++) data.push(i);
-            data.sort(() => Math.random() - 0.5);
+            
+            // 使用新洗牌算法
+            shuffleArray(data);
             
             grid = []; let idx = 0;
             for (let y = 0; y < ROWS; y++) {
@@ -225,7 +278,7 @@
             }
             startTimer();
             updateHint();
-            shuffleUntilSolvable(); // 开局防死局
+            shuffleUntilSolvable(); 
         }
 
         function handleInput(x, y, obj) {
@@ -244,7 +297,7 @@
                     selected = null;
                     cellsLeft -= 2;
                     if (cellsLeft === 0) win();
-                    else shuffleUntilSolvable(); // 消除后防死局
+                    else shuffleUntilSolvable(); 
                 } else {
                     selected.el.classList.remove('selected');
                     selected = obj; obj.el.classList.add('selected');
@@ -330,7 +383,8 @@
             while (isDeadlock()) {
                 console.log("死局重置...");
                 let values = actives.map(c => c.val);
-                values.sort(() => Math.random() - 0.5);
+                // 使用新洗牌算法
+                shuffleArray(values);
                 actives.forEach((c, i) => {
                     c.val = values[i];
                     c.el.style.backgroundImage = `url('https://cdn.jsdelivr.net/gh/zaisil132-lab/ldxmr@main/images/${c.val}.png')`;
